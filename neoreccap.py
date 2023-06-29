@@ -105,23 +105,23 @@ class NeoRecCap(object):
         if res != NR_ERR_OK:
             print("failed to open device")
 
-    def setup(self, data_rate=NR_RATE_250HZ, enb_channels=0xFFFF, input_range=NR_RANGE_mV150,
+    def setup(self, data_rate=NR_RATE_250HZ, input_range=NR_RANGE_mV150, enb_channels=0xFFFF,
               activity_thr=1, enb_event=0x003F,
               mode=NR_MODE_DATA):
         """
         Setup device
         """
         data_settings = NRDataSettings()
-        data_settings.DataRate = 0
-        data_settings.InputRange = 0
-        data_settings.EnabledChannels = 0
+        data_settings.DataRate = data_rate
+        data_settings.InputRange = input_range
+        data_settings.EnabledChannels = enb_channels
 
         event_settings = NREventSettings()
-        event_settings.EnabledEvents = 0
-        event_settings.ActivityThreshold = 0
+        event_settings.EnabledEvents = activity_thr
+        event_settings.ActivityThreshold = enb_event
 
         mode_settings = NRSetMode()
-        mode_settings.Mode = 0
+        mode_settings.Mode = mode
 
         err = self.lib.nb2SetDataSettings(self.id, ctypes.byref(data_settings))
         if err != NR_ERR_OK:
@@ -150,7 +150,7 @@ class NeoRecCap(object):
 
     def close(self):
         """
-            Close hardware device
+        Close hardware device
         """
         if self.lib == None:
             print("library nb2mcs.dll not available")
@@ -175,4 +175,4 @@ class NeoRecCap(object):
         # read data from device
         bytesread = self.lib.nb2GetData(self.id, ctypes.byref(buffer, 0), len(buffer))
 
-        return bytesread
+        return len(buffer), bytesread
