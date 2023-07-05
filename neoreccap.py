@@ -24,6 +24,7 @@ NR_MODE_DATA = 0
 NR_MODE_IMPEDANCE = 1
 NR_MODE_TEST = 2
 
+
 class NRDataSettings(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
@@ -32,12 +33,14 @@ class NRDataSettings(ctypes.Structure):
         ('EnabledChannels', ctypes.c_uint16)
     ]
 
+
 class NREventSettings(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
         ('EnabledEvents', ctypes.c_uint16),
         ('ActivityThreshold', ctypes.c_uint16)
     ]
+
 
 class NRSetMode(ctypes.Structure):
     _pack_ = 1
@@ -46,8 +49,18 @@ class NRSetMode(ctypes.Structure):
     ]
 
 
+class NRData(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("Channel", ctypes.c_int * 16),
+        ("Status", ctypes.c_uint32),
+        ("Counter", ctypes.c_uint32)
+    ]
+
+
 class NeoRecCap(object):
     def __init__(self):
+
         # get OS architecture (64/86-bit)
         self.x64 = ("64" in platform.architecture()[0])
 
@@ -56,8 +69,7 @@ class NeoRecCap(object):
         self._load_lib()
         # flag data acquisition
         self.running = False
-
-        self.id = 0
+        self.id = None
 
     def _load_lib(self):
         try:
@@ -90,6 +102,10 @@ class NeoRecCap(object):
             # returns the number of devices
             count = self.lib.nb2GetCount()
 
+        if count > 0:
+            # get device id
+            self.id = self.lib.nb2GetId(0)
+
     def open(self):
         """
         Open the hardware device and get a id device and device properties
@@ -97,15 +113,12 @@ class NeoRecCap(object):
         if self.lib == None:
             print("library mcsdevices.dll not available")
 
-        # get device id
-        self.id = self.lib.nb2GetId(0)
-
         # open device
         res = self.lib.nb2Open(self.id)
         if res != NR_ERR_OK:
             print("failed to open device")
 
-    def setup(self, data_rate=NR_RATE_250HZ, input_range=NR_RANGE_mV150, enb_channels=0xFFFF,
+    def setup(self, data_rate=NR_RATE_1000HZ, input_range=NR_RANGE_mV150, enb_channels=0xFFFF,
               activity_thr=1, enb_event=0x003F,
               mode=NR_MODE_DATA):
         """
@@ -139,14 +152,22 @@ class NeoRecCap(object):
         """
         Stop data acquisition
         """
-        if not self.running:
-            return
         self.running = False
         if self.id == None:
             print("device not open")
         err = self.lib.nb2Stop(self.id)
         if err != NR_ERR_OK:
             print("failed to stop device")
+
+    def start(self):
+        """
+        Start hardware device
+        """
+        res = self.lib.nb2Start(self.id)
+        if res != NR_ERR_OK:
+            print("cannot start device")
+            self.running = True
+
 
     def close(self):
         """
@@ -167,12 +188,13 @@ class NeoRecCap(object):
                 print("Can't close device")
             else:
                 self.id = None
+
+        res = self.lib.nb2ApiDone()
+        if res != NR_ERR_OK:
+            print("cannot free library resources")
         pass
 
     def read(self):
-        buffer = ctypes.create_string_buffer(10000 * 1024)
-
-        # read data from device
-        bytesread = self.lib.nb2GetData(self.id, ctypes.byref(buffer, 0), len(buffer))
-
-        return len(buffer), bytesread
+        data = (NRData * 2000)()
+        value = self.lib.nb2GetData(self.id, ctypes.byref(data), len(data))
+        return value, data
